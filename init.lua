@@ -112,8 +112,8 @@ function boat.on_punch(self, puncher)
 		local inv = puncher:get_inventory()
 		if not (creative and creative.is_enabled_for
 				and creative.is_enabled_for(puncher:get_player_name()))
-				or not inv:contains_item("main", "boats:boat") then
-			local leftover = inv:add_item("main", "boats:boat")
+				or not inv:contains_item("main", "advboats:boat") then
+			local leftover = inv:add_item("main", "advboats:boat")
 			-- if no room in inventory add a replacement boat to the world
 			if not leftover:is_empty() then
 				minetest.add_item(self.object:getpos(), leftover)
@@ -125,31 +125,137 @@ function boat.on_punch(self, puncher)
 		end)
 	end
 end
+minetest.register_entity("advboats:mark", {
+	initial_properties = {
+		visual = "cube",
+		visual_size = {x=1.1, y=1.1},
+		textures = {"areas_pos1.png", "areas_pos1.png",
+		            "areas_pos1.png", "areas_pos1.png",
+		            "areas_pos1.png", "areas_pos1.png"},
+		collisionbox = {-0.55, -0.55, -0.55, 0.55, 0.55, 0.55},
+	},
+	on_punch = function(self, hitter)
+		self.object:remove()
+	end,
+})
 
+
+
+function boat.round_pos(self)
+   -- Round boat's position to the nearest integer location
+   local pos = self.object:getpos()
+   pos.x = math.floor(pos.x+0.5)
+   pos.z = math.floor(pos.z+0.5)
+   self.object:setpos(pos)
+   minetest.add_entity(pos, "advboats:mark")
+end
+boat.get_instr_pos = function (instruction)
+   return {x=instruction[1], y=instruction[2], z=instruction[3]}
+end
+
+function boat.save_pos(self)
+   local pos = self.object:getpos()
+   local o = math.floor(self.object:getyaw()*4/math.pi+0.5)%8
+   local s = self.v
+   minetest.chat_send_all(pos.x.." "..pos.y.." "..pos.z.." "..o.." "..s)
+   if not self.instructions then
+      self.instructions = {}
+   end
+   local last = self.instructions[#self.instructions]
+   self.instructions[#self.instructions+1] = {pos.x, pos.y, pos.z, o, s}
+   if not last then
+      return
+   end
+   local lastpos = self.get_instr_pos(last)
+   minetest.chat_send_all("Last position:"..lastpos.x..","..lastpos.y..","..lastpos.z..", Distance to last position: "..vector.distance(pos,lastpos))
+   
+end
+
+-- Instruction format:
+-- {x, y, z, o, s}
+-- x,y,z : Coords (int)
+-- o: orientation in multiples of pi/4 (0 to 7)
+-- s: target speed in m/s
+
+function boat.selfdriving_step(self, dtime)
+   if not self.instructions or #self.instructions == 1 then
+      return
+   end
+   if not self.current then
+      self.current = 1
+      local instr = self.instructions[1]
+      local curpos = self.get_instr_pos(instr)
+      self.object:setpos(curpos)
+      self.dnext = -1
+      local nextpos = self.instructions[self.current+2]
+      nextpos = self.get_instr_pos(nextpos)
+      self.object:setpos(nextpos)
+      self.object:setyaw(math.pi/4*instr[4])
+      self.v = instr[5]
+      self.dnext = vector.distance(curpos,nextpos)
+   end
+   if self.dnext < 0 then
+      self.current = self.current + 1
+      if self.current == #self.instructions then
+	 self.selfdriving = false
+	 self.v = 0
+	 return
+      end
+	    
+      local instr = self.instructions[self.current]
+      local curpos = self.get_instr_pos(instr)
+      local nextpos = self.instructions[self.current+1]
+      if not nextpos then
+	 nextpos = self.instructions[1]
+      end
+      nextpos = self.get_instr_pos(nextpos)
+      self.object:setpos(curpos)
+      self.object:setyaw(math.pi/4*instr[4])
+      self.v = instr[5]
+      self.dnext = vector.distance(curpos,nextpos)
+   end
+   self.dnext = self.dnext - math.abs(self.v*dtime)
+   minetest.chat_send_all(self.dnext)
+end
 
 function boat.on_step(self, dtime)
 	self.v = get_v(self.object:getvelocity()) * get_sign(self.v)
-	if self.driver then
+	if self.driver and not self.selfdriving then
 		local ctrl = self.driver:get_player_control()
 		local yaw = self.object:getyaw()
+		if ctrl.aux1 then
+		   self.selfdriving = true
+		   minetest.chat_send_all("Boat is now selfdriving")
+		end 
 		if ctrl.up then
 			self.v = self.v + 0.1
 		elseif ctrl.down then
 			self.v = self.v - 0.1
 		end
-		if ctrl.left then
-			if self.v < 0 then
-				self.object:setyaw(yaw - (1 + dtime) * 0.03)
-			else
-				self.object:setyaw(yaw + (1 + dtime) * 0.03)
-			end
-		elseif ctrl.right then
-			if self.v < 0 then
-				self.object:setyaw(yaw + (1 + dtime) * 0.03)
-			else
-				self.object:setyaw(yaw - (1 + dtime) * 0.03)
-			end
+		if ctrl.left and not self.pressed then
+		   self.pressed = true
+		   if self.v < 0 then
+		      self.object:setyaw(yaw-math.pi/4)
+		   else
+		      self.object:setyaw(yaw+math.pi/4)
+		   end
+		   self:round_pos()
+		   self:save_pos()
+		elseif ctrl.right and not self.pressed then
+		   self.pressed = true
+		   if self.v < 0 then
+		      self.object:setyaw(yaw+math.pi/4)
+		   else
+		      self.object:setyaw(yaw-math.pi/4)
+		   end
+		   self:round_pos()
+		   self:save_pos()
+		elseif not ctrl.right and not ctrl.left then
+		   self.pressed = false
 		end
+	end
+	if self.selfdriving then
+	   self:selfdriving_step(dtime)
 	end
 	local velo = self.object:getvelocity()
 	if self.v == 0 and velo.x == 0 and velo.y == 0 and velo.z == 0 then
@@ -157,7 +263,7 @@ function boat.on_step(self, dtime)
 		return
 	end
 	local s = get_sign(self.v)
-	self.v = self.v - 0.02 * s
+--	self.v = self.v - 0.02 * s
 	if s ~= get_sign(self.v) then
 		self.object:setvelocity({x = 0, y = 0, z = 0})
 		self.v = 0
@@ -214,13 +320,13 @@ function boat.on_step(self, dtime)
 end
 
 
-minetest.register_entity("boats:boat", boat)
+minetest.register_entity("advboats:boat", boat)
 
 
-minetest.register_craftitem("boats:boat", {
+minetest.register_craftitem("advboats:boat", {
 	description = "Boat",
-	inventory_image = "boats_inventory.png",
-	wield_image = "boats_wield.png",
+	inventory_image = "advboats_inventory.png",
+	wield_image = "advboats_wield.png",
 	wield_scale = {x = 2, y = 2, z = 1},
 	liquids_pointable = true,
 	groups = {flammable = 2},
@@ -242,9 +348,9 @@ minetest.register_craftitem("boats:boat", {
 			return itemstack
 		end
 		pointed_thing.under.y = pointed_thing.under.y + 0.5
-		boat = minetest.add_entity(pointed_thing.under, "boats:boat")
+		boat = minetest.add_entity(pointed_thing.under, "advboats:boat")
 		if boat then
-			boat:setyaw(placer:get_look_horizontal())
+--			boat:setyaw(placer:get_look_horizontal())
 			if not (creative and creative.is_enabled_for
 					and creative.is_enabled_for(placer:get_player_name())) then
 				itemstack:take_item()
@@ -256,7 +362,7 @@ minetest.register_craftitem("boats:boat", {
 
 
 minetest.register_craft({
-	output = "boats:boat",
+	output = "advboats:boat",
 	recipe = {
 		{"",           "",           ""          },
 		{"group:wood", "",           "group:wood"},
@@ -266,6 +372,6 @@ minetest.register_craft({
 
 minetest.register_craft({
 	type = "fuel",
-	recipe = "boats:boat",
+	recipe = "advboats:boat",
 	burntime = 20,
 })
