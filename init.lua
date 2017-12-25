@@ -85,16 +85,27 @@ end
 
 
 function boat.on_activate(self, staticdata, dtime_s)
-	self.object:set_armor_groups({immortal = 1})
-	if staticdata then
-		self.v = tonumber(staticdata)
-	end
-	self.last_v = self.v
+   self.object:set_armor_groups({immortal = 1})
+   local data = {}
+   if staticdata then
+      data = minetest.deserialize(staticdata)
+      if not data then
+	 return
+      end
+      
+      self.v = data.v
+      self.instructions = data.instr
+      self.selfdriving = data.sdr
+      self.dnext = data.dn
+      self.current = data.cur
+   end
+   self.last_v = self.v
 end
 
 
 function boat.get_staticdata(self)
-	return tostring(self.v)
+   data = {v = self.v, instr = self.instructions, cur = self.current, sdr = self.selfdriving, dn = self.dnext}
+   return minetest.serialize(data)
 end
 
 
