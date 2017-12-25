@@ -186,19 +186,23 @@ function boat.selfdriving_step(self, dtime)
       local instr = self.instructions[1]
       local curpos = self.get_instr_pos(instr)
       self.object:setpos(curpos)
-      self.dnext = -1
-      local nextpos = self.instructions[self.current+2]
+      local nextpos = self.instructions[self.current+1]
       nextpos = self.get_instr_pos(nextpos)
-      self.object:setpos(nextpos)
-      self.object:setyaw(math.pi/4*instr[4])
+      self.object:setpos(curpos)
+      self.object:setyaw(core.dir_to_yaw(vector.direction(curpos,nextpos)))
       self.v = instr[5]
       self.dnext = vector.distance(curpos,nextpos)
    end
    if self.dnext < 0 then
       self.current = self.current + 1
       if self.current == #self.instructions then
-	 self.selfdriving = false
-	 self.v = 0
+	 local instr = self.instructions[self.current]
+	 self.current = 0
+	 local nextpos = self.instructions[1]
+	 nextpos = self.get_instr_pos(nextpos)
+	 local curpos = self.get_instr_pos(instr)
+	 self.object:setyaw(core.dir_to_yaw(vector.direction(curpos,nextpos)))
+	 self.dnext = vector.distance(curpos,nextpos)
 	 return
       end
 	    
