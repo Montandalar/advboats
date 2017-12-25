@@ -72,6 +72,9 @@ function boat.on_rightclick(self, clicker)
 			end
 			clicker:set_detach()
 		end
+		if not self.selfdriving then
+		   minetest.chat_send_player(name,"Press E to save path and enter automatic mode")
+		end
 		self.driver = clicker
 		clicker:set_attach(self.object, "",
 			{x = 0, y = 11, z = -3}, {x = 0, y = 0, z = 0})
@@ -158,7 +161,7 @@ function boat.round_pos(self)
    pos.x = math.floor(pos.x+0.5)
    pos.z = math.floor(pos.z+0.5)
    self.object:setpos(pos)
-   minetest.add_entity(pos, "advboats:mark")
+--   minetest.add_entity(pos, "advboats:mark")
 end
 boat.get_instr_pos = function (instruction)
    return {x=instruction[1], y=instruction[2], z=instruction[3]}
@@ -168,7 +171,7 @@ function boat.save_pos(self)
    local pos = self.object:getpos()
    local o = math.floor(self.object:getyaw()*4/math.pi+0.5)%8
    local s = self.v
-   minetest.chat_send_all(pos.x.." "..pos.y.." "..pos.z.." "..o.." "..s)
+--   minetest.chat_send_all(pos.x.." "..pos.y.." "..pos.z.." "..o.." "..s)
    if not self.instructions then
       self.instructions = {}
    end
@@ -178,7 +181,7 @@ function boat.save_pos(self)
       return
    end
    local lastpos = self.get_instr_pos(last)
-   minetest.chat_send_all("Last position:"..lastpos.x..","..lastpos.y..","..lastpos.z..", Distance to last position: "..vector.distance(pos,lastpos))
+--   minetest.chat_send_all("Last position:"..lastpos.x..","..lastpos.y..","..lastpos.z..", Distance to last position: "..vector.distance(pos,lastpos))
    
 end
 
@@ -230,7 +233,7 @@ function boat.selfdriving_step(self, dtime)
       self.dnext = vector.distance(curpos,nextpos)
    end
    self.dnext = self.dnext - math.abs(self.v*dtime)
-   minetest.chat_send_all(self.dnext)
+--   minetest.chat_send_all(self.dnext)
 end
 
 function boat.on_step(self, dtime)
@@ -240,7 +243,7 @@ function boat.on_step(self, dtime)
 		local yaw = self.object:getyaw()
 		if ctrl.aux1 then
 		   self.selfdriving = true
-		   minetest.chat_send_all("Boat is now selfdriving")
+--		   minetest.chat_send_all("Boat is now selfdriving")
 		end 
 		if ctrl.up then
 			self.v = self.v + 0.1
@@ -339,7 +342,7 @@ minetest.register_entity("advboats:boat", boat)
 
 
 minetest.register_craftitem("advboats:boat", {
-	description = "Boat",
+	description = "Advanced Boat",
 	inventory_image = "advboats_inventory.png",
 	wield_image = "advboats_wield.png",
 	wield_scale = {x = 2, y = 2, z = 1},
